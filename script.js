@@ -24,6 +24,7 @@
 
   var userConfig = window.KaoriKyouWidgetConfig || {};
   var config = extend({}, DEFAULT_CONFIG, userConfig);
+  var widgetState = null;
 
   if (document.getElementById(config.widgetId)) {
     return;
@@ -91,27 +92,35 @@
   function searchWithFallbacks(validTags) {
     var query = validTags.join(' ');
 
-    return searchByTags(validTags).then(function (items) {
-      if (items.length > config.minTagResults) {
-        return {
-          validTags: validTags,
-          items: items,
-          query: query
-        };
-      }
-
-      return searchEachTag(validTags).then(function (fallbackItems) {
-        if (fallbackItems.length > config.minTagResults) {
+    return searchByTags(validTags)
+      .catch(function () {
+        return [];
+      })
+      .then(function (items) {
+        if (items.length > config.minTagResults) {
           return {
             validTags: validTags,
-            items: fallbackItems,
+            items: items,
             query: query
           };
         }
 
-        return loadFallbackPayload();
+        return searchEachTag(validTags)
+          .catch(function () {
+            return [];
+          })
+          .then(function (fallbackItems) {
+            if (fallbackItems.length > config.minTagResults) {
+              return {
+                validTags: validTags,
+                items: fallbackItems,
+                query: query
+              };
+            }
+
+            return loadFallbackPayload();
+          });
       });
-    });
   }
 
   function searchEachTag(validTags) {
@@ -125,16 +134,20 @@
           return null;
         }
 
-        return searchRequest(tag, config.resultLimit).then(function (items) {
-          items.forEach(function (item) {
-            if (!item || !item.url || uniqueUrls[item.url]) {
-              return;
-            }
+        return searchRequest(tag, config.resultLimit)
+          .catch(function () {
+            return [];
+          })
+          .then(function (items) {
+            items.forEach(function (item) {
+              if (!item || !item.url || uniqueUrls[item.url]) {
+                return;
+              }
 
-            uniqueUrls[item.url] = true;
-            mergedItems.push(item);
+              uniqueUrls[item.url] = true;
+              mergedItems.push(item);
+            });
           });
-        });
       });
     });
 
@@ -344,10 +357,14 @@
           return items;
         }
 
-        return searchRequest('', config.resultLimit);
+        return searchRequest('', config.resultLimit).catch(function () {
+          return [];
+        });
       })
       .catch(function () {
-        return searchRequest('', config.resultLimit);
+        return searchRequest('', config.resultLimit).catch(function () {
+          return [];
+        });
       });
   }
 
@@ -442,14 +459,17 @@
       return;
     }
 
+    widgetState = {
+      items: items,
+      firstItemIndex: 0,
+      lastPageItemCount: null
+    };
+
     var anchor = document.querySelector(config.mountAfterSelector);
     var widget = document.createElement('aside');
     widget.id = config.widgetId;
     widget.className = 'kaori-kyou-widget';
-
-    widget.innerHTML = [
-      '<div class="kaori-kyou-widget__body">' + renderCarousel(items) + '</div>'
-    ].join('');
+    widget.innerHTML = '<div class="kaori-kyou-widget__body"></div>';
 
     if (anchor && anchor.parentNode) {
       anchor.parentNode.insertBefore(widget, anchor.nextSibling);
@@ -457,7 +477,83 @@
       document.body.appendChild(widget);
     }
 
-    bindCarousel(widget);
+    renderCarouselInto(widget);
+    bindResizeHandler(widget);
+  }
+
+  function renderCarouselInto(widget) {
+    if (!widget || !widgetState) {
+      return;
+    }
+
+    var body = widget.querySelector('.kaori-kyou-widget__body');
+    if (!body) {
+      return;
+    }
+
+    var layout = computePageLayout(widget);
+    widget.style.setProperty('--kaori-cols', String(layout.cols));
+    widgetState.lastPageItemCount = layout.total;
+
+    body.innerHTML = renderCarousel(widgetState.items, layout.total);
+    bindCarousel(widget, layout.total);
+  }
+
+  function computePageLayout(widget) {
+    var width = 0;
+    if (widget) {
+      var rect = widget.getBoundingClientRect();
+      width = rect.width || widget.offsetWidth || 0;
+    }
+    if (!width) {
+      width = window.innerWidth && window.innerWidth < 280 ? window.innerWidth : 280;
+    }
+
+    var cols;
+    if (width >= 640) {
+      cols = 4;
+    } else if (width >= 460) {
+      cols = 3;
+    } else {
+      cols = 2;
+    }
+
+    return { cols: cols, rows: 2, total: cols * 2 };
+  }
+
+  function bindResizeHandler(widget) {
+    var timer = null;
+
+    function onSizeChange() {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+      timer = window.setTimeout(function () {
+        timer = null;
+        var layout = computePageLayout(widget);
+        if (widgetState && layout.total !== widgetState.lastPageItemCount) {
+          renderCarouselInto(widget);
+        } else {
+          widget.style.setProperty('--kaori-cols', String(layout.cols));
+        }
+      }, 150);
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      var ro = new ResizeObserver(onSizeChange);
+      ro.observe(widget);
+    } else {
+      var onResize = function () {
+        if (!document.body.contains(widget)) {
+          window.removeEventListener('resize', onResize);
+          window.removeEventListener('orientationchange', onResize);
+          return;
+        }
+        onSizeChange();
+      };
+      window.addEventListener('resize', onResize);
+      window.addEventListener('orientationchange', onResize);
+    }
   }
 
   function showSkeleton() {
@@ -494,13 +590,25 @@
     }
   }
 
-  function renderCarousel(items) {
-    var pages = padPages(chunkItems(items, 4));
+  function renderCarousel(items, pageItemCount) {
+    pageItemCount = pageItemCount || 4;
+    var pages = padPages(chunkItems(items, pageItemCount), pageItemCount);
+    var startPage = 0;
+
+    if (widgetState && widgetState.firstItemIndex && pages.length) {
+      startPage = Math.floor(widgetState.firstItemIndex / pageItemCount);
+      if (startPage >= pages.length) {
+        startPage = pages.length - 1;
+      }
+      if (startPage < 0) {
+        startPage = 0;
+      }
+    }
 
     return [
-      '<div class="kaori-kyou-widget__carousel" data-page="0">',
-      '  <div class="kaori-kyou-widget__track">' + renderPages(pages) + '</div>',
-      renderCarouselControls(pages.length),
+      '<div class="kaori-kyou-widget__carousel" data-page="' + startPage + '">',
+      '  <div class="kaori-kyou-widget__track" style="transform:translateX(-' + (startPage * 100) + '%)">' + renderPages(pages) + '</div>',
+      renderCarouselControls(pages.length, startPage),
       '</div>'
     ].join('');
   }
@@ -541,7 +649,7 @@
       .join('');
   }
 
-  function renderCarouselControls(pageCount) {
+  function renderCarouselControls(pageCount, activeIndex) {
     if (pageCount <= 1) {
       return '';
     }
@@ -549,20 +657,22 @@
     return [
       '<button class="kaori-kyou-widget__nav kaori-kyou-widget__nav--prev" type="button" aria-label="Previous">&#8249;</button>',
       '<button class="kaori-kyou-widget__nav kaori-kyou-widget__nav--next" type="button" aria-label="Next">&#8250;</button>',
-      '<div class="kaori-kyou-widget__dots">' + renderDots(pageCount) + '</div>'
+      '<div class="kaori-kyou-widget__dots">' + renderDots(pageCount, activeIndex || 0) + '</div>'
     ].join('');
   }
 
-  function renderDots(pageCount) {
+  function renderDots(pageCount, activeIndex) {
+    activeIndex = activeIndex || 0;
     var html = '';
     for (var i = 0; i < pageCount; i += 1) {
-      html += '<button class="kaori-kyou-widget__dot' + (i === 0 ? ' is-active' : '') + '" type="button" data-index="' + i + '" aria-label="Go to slide ' + (i + 1) + '"></button>';
+      html += '<button class="kaori-kyou-widget__dot' + (i === activeIndex ? ' is-active' : '') + '" type="button" data-index="' + i + '" aria-label="Go to slide ' + (i + 1) + '"></button>';
     }
 
     return html;
   }
 
-  function bindCarousel(widget) {
+  function bindCarousel(widget, pageItemCount) {
+    pageItemCount = pageItemCount || 4;
     var carousel = widget.querySelector('.kaori-kyou-widget__carousel');
     if (!carousel) {
       return;
@@ -574,8 +684,17 @@
     var prev = carousel.querySelector('.kaori-kyou-widget__nav--prev');
     var next = carousel.querySelector('.kaori-kyou-widget__nav--next');
     var pageCount = pages.length;
-    var currentPage = 0;
+    var currentPage = Number(carousel.getAttribute('data-page')) || 0;
     var autoSlideTimer = null;
+
+    if (currentPage >= pageCount) {
+      currentPage = 0;
+    }
+    track.style.transform = 'translateX(-' + currentPage * 100 + '%)';
+
+    if (widgetState) {
+      widgetState.firstItemIndex = currentPage * pageItemCount;
+    }
 
     if (pageCount <= 1) {
       return;
@@ -585,6 +704,10 @@
       currentPage = (index + pageCount) % pageCount;
       track.style.transform = 'translateX(-' + currentPage * 100 + '%)';
       carousel.setAttribute('data-page', String(currentPage));
+
+      if (widgetState) {
+        widgetState.firstItemIndex = currentPage * pageItemCount;
+      }
 
       Array.prototype.forEach.call(dots, function (dot, dotIndex) {
         dot.classList.toggle('is-active', dotIndex === currentPage);
@@ -627,11 +750,12 @@
     startAutoSlide();
   }
 
-  function padPages(pages) {
+  function padPages(pages, size) {
     if (!pages.length) return pages;
+    size = size || 4;
     var result = pages.map(function (p) { return p.slice(); });
     var lastPage = result[result.length - 1];
-    while (lastPage.length < 4) {
+    while (lastPage.length < size) {
       lastPage.push({ isPlaceholder: true });
     }
     return result;
@@ -714,11 +838,11 @@
     style.textContent = [
       '.kaori-kyou-widget{width:280px;max-width:100%;box-sizing:border-box;border-radius:16px;background:#fff;margin:18px 0;font-family:Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14);overflow:hidden}',
       '.kaori-kyou-widget__body{position:relative;padding:8px;box-sizing:border-box;background:#fff7f2}',
-      '.kaori-kyou-widget__skeleton-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}',
+      '.kaori-kyou-widget__skeleton-grid{display:grid;grid-template-columns:repeat(var(--kaori-cols,2),1fr);gap:8px}',
       '.kaori-kyou-widget__skeleton-card{border-radius:10px;overflow:hidden;background:linear-gradient(90deg,#f3e6df 25%,#fff5f0 50%,#f3e6df 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite;aspect-ratio:1/1}',
       '.kaori-kyou-widget__carousel{overflow:hidden}',
       '.kaori-kyou-widget__track{display:flex;transition:transform .28s ease}',
-      '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}',
+      '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(var(--kaori-cols,2),1fr);gap:8px}',
       '.kaori-kyou-widget__card{display:flex;flex-direction:column;color:inherit;text-decoration:none;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);transition:transform .2s ease,box-shadow .2s ease}',
       '.kaori-kyou-widget__card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.15)}',
       '.kaori-kyou-widget__card--placeholder{background:transparent;box-shadow:none;pointer-events:none;visibility:hidden}',

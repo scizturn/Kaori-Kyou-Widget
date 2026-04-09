@@ -3,9 +3,9 @@
 
   var DEFAULT_CONFIG = {
     searchEndpoint: 'https://search.kyou.id/v1/search',
-    tagContainerSelector: '.td-tags.td-post-small-box.clearfix',
-    tagLinkSelector: '.td-tags.td-post-small-box.clearfix a',
-    mountAfterSelector: '.td-tags.td-post-small-box.clearfix',
+    tagContainerSelector: '.td-tags',
+    tagLinkSelector: '.td-tags a',
+    mountAfterSelector: '.td-tags',
     widgetId: 'kaori-kyou-widget',
     maxSourceTags: 50,
     maxValidTags: 50,
@@ -14,6 +14,7 @@
     resultLimit: 40,
     fallbackRenderLimit: 40,
     minResultsToShow: 1,
+    minTagResults: 12,
     timeoutMs: 8000,
     randomPoolSize: 40,
     randomSort: 'newest',
@@ -91,7 +92,7 @@
     var query = validTags.join(' ');
 
     return searchByTags(validTags).then(function (items) {
-      if (items.length) {
+      if (items.length > config.minTagResults) {
         return {
           validTags: validTags,
           items: items,
@@ -100,7 +101,7 @@
       }
 
       return searchEachTag(validTags).then(function (fallbackItems) {
-        if (fallbackItems.length) {
+        if (fallbackItems.length > config.minTagResults) {
           return {
             validTags: validTags,
             items: fallbackItems,
@@ -361,7 +362,7 @@
     }).then(function (payload) {
       var totalItems = getTotalItems(payload);
       var pageSize = config.randomPoolSize;
-      var maxPage = Math.max(1, Math.ceil(totalItems / pageSize));
+      var maxPage = Math.min(50, Math.max(1, Math.ceil(totalItems / pageSize)));
       var randomPage = Math.max(1, Math.floor(Math.random() * maxPage) + 1);
 
       return fetchSearchPayload({
@@ -434,7 +435,7 @@
     return true;
   }
 
-  function mountWidget(validTags, items, query) {
+  function mountWidget(validTags, items) {
     hideSkeleton();
 
     if (document.getElementById(config.widgetId)) {
@@ -447,7 +448,7 @@
     widget.className = 'kaori-kyou-widget';
 
     widget.innerHTML = [
-      '<div class="kaori-kyou-widget__body">' + renderCarousel(items, query) + '</div>'
+      '<div class="kaori-kyou-widget__body">' + renderCarousel(items) + '</div>'
     ].join('');
 
     if (anchor && anchor.parentNode) {
@@ -493,8 +494,8 @@
     }
   }
 
-  function renderCarousel(items, query) {
-    var pages = fillLastPageWithCta(chunkItems(items, 4), query);
+  function renderCarousel(items) {
+    var pages = padPages(chunkItems(items, 4));
 
     return [
       '<div class="kaori-kyou-widget__carousel" data-page="0">',
@@ -515,11 +516,7 @@
   function renderCards(items) {
     return items
       .map(function (item) {
-        if (item && item.type === 'cta') {
-          return renderCtaCard(item.url);
-        }
-
-        if (item && item.isPlaceholder) {
+        if (item.isPlaceholder) {
           return '<div class="kaori-kyou-widget__card kaori-kyou-widget__card--placeholder" aria-hidden="true"></div>';
         }
 
@@ -527,36 +524,21 @@
           ? '<div class="kaori-kyou-widget__thumb"><img src="' + escapeAttribute(item.image) + '" alt="' + escapeAttribute(item.title) + '" loading="lazy"></div>'
           : '<div class="kaori-kyou-widget__thumb kaori-kyou-widget__thumb--empty"></div>';
 
-        var manufacturerHtml = item.manufacturer
-          ? '<div class="kaori-kyou-widget__meta">' + escapeHtml(item.manufacturer) + '</div>'
-          : '';
-
-        var seriesHtml = item.series
-          ? '<div class="kaori-kyou-widget__meta kaori-kyou-widget__meta--muted">' + escapeHtml(item.series) + '</div>'
+        var brandHtml = item.series
+          ? '<div class="kaori-kyou-widget__brand">' + escapeHtml(item.series) + '</div>'
           : '';
 
         return [
           '<a class="kaori-kyou-widget__card" href="' + escapeAttribute(item.url) + '" target="_blank" rel="noopener sponsored">',
           imageHtml,
-          '  <div class="kaori-kyou-widget__overlay">',
-          '    <div class="kaori-kyou-widget__content">',
-          '      <div class="kaori-kyou-widget__card-title">' + escapeHtml(item.title) + '</div>',
-          manufacturerHtml,
-          seriesHtml,
-          '    </div>',
-          '  </div>',
+          '<div class="kaori-kyou-widget__info">',
+          '<div class="kaori-kyou-widget__card-title">' + escapeHtml(item.title) + '</div>',
+          brandHtml,
+          '</div>',
           '</a>'
         ].join('');
       })
       .join('');
-  }
-
-  function renderCtaCard(url) {
-    return [
-      '<a class="kaori-kyou-widget__card kaori-kyou-widget__card--cta" href="' + escapeAttribute(url) + '" target="_blank" rel="noopener sponsored">',
-      '<span class="kaori-kyou-widget__cta-pill">Lihat Kyou &#8594;</span>',
-      '</a>'
-    ].join('');
   }
 
   function renderCarouselControls(pageCount) {
@@ -645,6 +627,16 @@
     startAutoSlide();
   }
 
+  function padPages(pages) {
+    if (!pages.length) return pages;
+    var result = pages.map(function (p) { return p.slice(); });
+    var lastPage = result[result.length - 1];
+    while (lastPage.length < 4) {
+      lastPage.push({ isPlaceholder: true });
+    }
+    return result;
+  }
+
   function chunkItems(items, size) {
     var chunks = [];
 
@@ -653,44 +645,6 @@
     }
 
     return chunks;
-  }
-
-  function fillLastPageWithCta(pages, query) {
-    if (!pages.length) {
-      return [];
-    }
-
-    var result = pages.map(function (page) {
-      return page.slice();
-    });
-    var lastPage = result[result.length - 1];
-
-    if (lastPage.length === 4) {
-      return result;
-    }
-
-    while (lastPage.length < 3) {
-      lastPage.push({ isPlaceholder: true });
-    }
-
-    lastPage.push({
-      type: 'cta',
-      url: buildSearchPageUrl(query)
-    });
-
-    return result;
-  }
-
-  function buildSearchPageUrl(query) {
-    var url = new URL(config.searchPageBaseUrl);
-
-    if (query) {
-      url.searchParams.set('q', query);
-    }
-
-    url.searchParams.set('sold', 'false');
-    url.searchParams.set('sort', 'kyou_search_score');
-    return url.toString();
   }
 
   function resolveImage(source) {
@@ -758,35 +712,34 @@
     var style = document.createElement('style');
     style.id = config.widgetId + '-styles';
     style.textContent = [
-      '.kaori-kyou-widget{width:280px;max-width:100%;height:280px;box-sizing:border-box;overflow:hidden;border-radius:16px;background:#fff;margin:18px 0;font-family:Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14)}',
-      '.kaori-kyou-widget__body{position:relative;padding:8px;height:100%;box-sizing:border-box;background:#fff7f2}',
-      '.kaori-kyou-widget--skeleton .kaori-kyou-widget__body{padding:8px}',
-      '.kaori-kyou-widget__skeleton-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,1fr);gap:8px;height:100%}',
-      '.kaori-kyou-widget__skeleton-card{border-radius:14px;background:linear-gradient(90deg,#f3e6df 25%,#fff5f0 50%,#f3e6df 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite}',
-      '.kaori-kyou-widget__carousel{position:relative;height:100%;overflow:hidden}',
-      '.kaori-kyou-widget__track{display:flex;height:100%;transition:transform .28s ease}',
-      '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-content:start}',
-      '.kaori-kyou-widget__card{position:relative;display:block;color:inherit;text-decoration:none;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.08);transition:transform .2s ease,box-shadow .2s ease;aspect-ratio:1 / 1}',
-      '.kaori-kyou-widget__card:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(15,23,42,.12)}',
-      '.kaori-kyou-widget__card--placeholder{background:transparent;box-shadow:none;pointer-events:none}',
-      '.kaori-kyou-widget__card--cta{display:flex;align-items:center;justify-content:center;background:transparent;box-shadow:none}',
-      '.kaori-kyou-widget__cta-pill{display:inline-flex;align-items:center;justify-content:center;max-width:88px;min-height:28px;padding:0 12px;border-radius:999px;background:#111827;color:#fff;font-size:10px;font-weight:700;line-height:1.1;text-align:center;box-shadow:0 8px 18px rgba(15,23,42,.16)}',
-      '.kaori-kyou-widget__thumb{width:100%;height:100%;overflow:hidden;background:#ffd4bf}',
+      '.kaori-kyou-widget{width:280px;max-width:100%;box-sizing:border-box;border-radius:16px;background:#fff;margin:18px 0;font-family:Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14);overflow:hidden}',
+      '.kaori-kyou-widget__body{position:relative;padding:8px;box-sizing:border-box;background:#fff7f2}',
+      '.kaori-kyou-widget__skeleton-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}',
+      '.kaori-kyou-widget__skeleton-card{border-radius:10px;overflow:hidden;background:linear-gradient(90deg,#f3e6df 25%,#fff5f0 50%,#f3e6df 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite;aspect-ratio:1/1}',
+      '.kaori-kyou-widget__carousel{overflow:hidden}',
+      '.kaori-kyou-widget__track{display:flex;transition:transform .28s ease}',
+      '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}',
+      '.kaori-kyou-widget__card{display:flex;flex-direction:column;color:inherit;text-decoration:none;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);transition:transform .2s ease,box-shadow .2s ease}',
+      '.kaori-kyou-widget__card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.15)}',
+      '.kaori-kyou-widget__card--placeholder{background:transparent;box-shadow:none;pointer-events:none;visibility:hidden}',
+      '.kaori-kyou-widget__card--placeholder::before{content:"";display:block;width:100%;aspect-ratio:1/1}',
+      '.kaori-kyou-widget__card--placeholder::after{content:"";display:block;height:58px}',
+      '.kaori-kyou-widget__card--cta{display:flex;align-items:center;justify-content:center;min-height:80px;box-shadow:none;background:transparent}',
+      '.kaori-kyou-widget__cta-pill{display:inline-flex;align-items:center;justify-content:center;padding:0 14px;height:30px;border-radius:999px;background:#111827;color:#fff;font-size:10px;font-weight:700;box-shadow:0 4px 10px rgba(15,23,42,.2)}',
+      '.kaori-kyou-widget__thumb{width:100%;aspect-ratio:1/1;overflow:hidden;background:#f3e6df}',
       '.kaori-kyou-widget__thumb--empty{background:linear-gradient(135deg,#ffd8c2,#ffefe5)}',
       '.kaori-kyou-widget__thumb img{display:block;width:100%;height:100%;object-fit:cover}',
-      '.kaori-kyou-widget__overlay{position:absolute;left:0;right:0;bottom:0;padding:8px;background:linear-gradient(180deg,rgba(17,24,39,0) 0%,rgba(17,24,39,.88) 58%,rgba(17,24,39,.96) 100%)}',
-      '.kaori-kyou-widget__content{min-width:0}',
-      '.kaori-kyou-widget__card-title{font-size:11px;font-weight:700;line-height:1.25;color:#fff;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
-      '.kaori-kyou-widget__meta{margin-top:4px;font-size:9px;line-height:1.25;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.kaori-kyou-widget__meta--muted{margin-top:2px;color:rgba(255,255,255,.74)}',
-      '.kaori-kyou-widget__nav{position:absolute;top:50%;transform:translateY(-50%);width:22px;height:22px;border:0;border-radius:999px;background:rgba(17,24,39,.7);color:#fff;font-size:15px;line-height:22px;text-align:center;cursor:pointer;z-index:2}',
-      '.kaori-kyou-widget__nav--prev{left:6px}',
-      '.kaori-kyou-widget__nav--next{right:6px}',
-      '.kaori-kyou-widget__dots{position:absolute;left:0;right:0;bottom:2px;display:flex;justify-content:center;gap:5px}',
+      '.kaori-kyou-widget__info{padding:6px 7px 8px;background:#fff;box-sizing:border-box;height:58px;overflow:hidden}',
+      '.kaori-kyou-widget__card-title{font-size:11px;font-weight:700;line-height:1.35;color:#111827;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}',
+      '.kaori-kyou-widget__brand{margin-top:3px;font-size:9px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.kaori-kyou-widget__nav{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;border:0;border-radius:999px;background:rgba(255,255,255,.9);color:#111827;font-size:16px;line-height:24px;text-align:center;cursor:pointer;z-index:2;box-shadow:0 2px 6px rgba(15,23,42,.2)}',
+      '.kaori-kyou-widget__nav--prev{left:4px}',
+      '.kaori-kyou-widget__nav--next{right:4px}',
+      '.kaori-kyou-widget__dots{display:flex;justify-content:center;gap:5px;padding:6px 0 4px}',
       '.kaori-kyou-widget__dot{width:6px;height:6px;padding:0;border:0;border-radius:999px;background:#fdba8c;cursor:pointer}',
       '.kaori-kyou-widget__dot.is-active{width:16px;background:#f97316}',
       '@keyframes kaoriKyouSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}',
-      '@media (max-width:480px){.kaori-kyou-widget{width:100%;height:auto}.kaori-kyou-widget__body{height:auto;min-height:280px}.kaori-kyou-widget__page{grid-template-columns:repeat(2,minmax(0,1fr))}}'
+      '@media (max-width:480px){.kaori-kyou-widget{width:100%}}'
     ].join('');
 
     document.head.appendChild(style);

@@ -5,7 +5,7 @@
     searchEndpoint: 'https://search.kyou.id/v1/search',
     tagContainerSelector: '.td-tags',
     tagLinkSelector: '.td-tags a',
-    mountAfterSelector: '.td-tags',
+    // mountAfterSelector: '#kaori-widget-anchor',
     widgetId: 'kaori-kyou-widget',
     maxSourceTags: 50,
     maxValidTags: 50,

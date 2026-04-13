@@ -8,11 +8,10 @@
     mountAfterSelector: '#kaori-widget-anchor',
     widgetId: 'kaori-kyou-widget',
     maxSourceTags: 50,
-    maxValidTags: 50,
     bannedKeywords: ['seiyu'],
-    validationLimit: 12,
     resultLimit: 40,
     fallbackRenderLimit: 40,
+    maxIndividualSearches: 5,
     minResultsToShow: 1,
     minTagResults: 12,
     timeoutMs: 8000,
@@ -46,14 +45,7 @@
       return;
     }
 
-    validateTags(tags)
-      .then(function (validTags) {
-        if (!validTags.length) {
-          return loadFallbackPayload();
-        }
-
-        return searchWithFallbacks(validTags);
-      })
+    searchWithFallbacks(tags)
       .then(function (payload) {
         hideSkeleton();
         if (!payload || !payload.items || payload.items.length < config.minResultsToShow) {
@@ -127,8 +119,9 @@
     var uniqueUrls = Object.create(null);
     var mergedItems = [];
     var chain = Promise.resolve();
+    var tagsToSearch = validTags.slice(0, config.maxIndividualSearches);
 
-    validTags.forEach(function (tag) {
+    tagsToSearch.forEach(function (tag) {
       chain = chain.then(function () {
         if (mergedItems.length >= config.resultLimit) {
           return null;
@@ -187,22 +180,6 @@
       })
       .filter(Boolean)
       .slice(0, config.maxSourceTags);
-  }
-
-  function validateTags(tags) {
-    var queue = tags.map(function (tag) {
-      return searchRequest(tag, config.validationLimit)
-        .then(function (items) {
-          return items.length ? tag : null;
-        })
-        .catch(function () {
-          return null;
-        });
-    });
-
-    return Promise.all(queue).then(function (results) {
-      return results.filter(Boolean).slice(0, config.maxValidTags);
-    });
   }
 
   function searchByTags(validTags) {

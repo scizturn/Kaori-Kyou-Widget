@@ -421,6 +421,13 @@
       if (!source.deadline && Number(source.slot) === 0) {
         return false;
       }
+
+      if (source.deadline) {
+        var deadline = new Date(source.deadline);
+        if (!isNaN(deadline.getTime()) && deadline.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
+          return false;
+        }
+      }
     }
 
     return true;

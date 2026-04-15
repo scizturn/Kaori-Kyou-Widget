@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaori Kyou Widget — Preview</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px auto; padding: 0 16px; background: #fafafa; color: #111; display: flex; flex-direction: column; align-items: center; }
+    .slot { width: 324px; }
+    .frame { width: 324px; min-height: 456px; border: 1px dashed #bbb; background: #fff; box-sizing: border-box; padding: 8px; position: relative; }
+    .frame::before { content: '324 × adaptive (min 456)'; position: absolute; top: -18px; left: 0; font-size: 10px; color: #888; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    .td-tags { margin: 8px 0; }
+    .td-tags a { display: inline-block; margin: 2px 3px; padding: 2px 8px; background: #eee; border-radius: 999px; text-decoration: none; color: #333; font-size: 11px; }
+    .article-content { padding: 4px 0; line-height: 1.4; color: #444; font-size: 12px; }
+    .controls { width: 324px; margin: 16px 0; padding: 10px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.08); font-size: 12px; box-sizing: border-box; }
+    .controls code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    .link-inspector { margin-top: 12px; padding: 10px; background: #fff7e6; border: 1px solid #ffd480; border-radius: 6px; font-size: 12px; display: none; }
+    .link-inspector.show { display: block; }
+    .link-inspector strong { display: block; margin-bottom: 4px; }
+    .link-inspector code { word-break: break-all; }
+    .query-log { width: 324px; margin-top: 12px; padding: 10px; background: #0f172a; color: #e2e8f0; border-radius: 8px; font-size: 11px; font-family: Consolas, monospace; box-sizing: border-box; max-height: 260px; overflow: auto; }
+    .query-log strong { display: block; margin-bottom: 6px; color: #fbbf24; font-family: Arial, sans-serif; font-size: 12px; }
+    .query-log .q-row { padding: 6px 0; border-bottom: 1px solid #1e293b; word-break: break-all; }
+    .query-log .q-row:last-child { border-bottom: 0; }
+    .query-log .q-status { color: #86efac; font-weight: 700; margin-right: 6px; }
+    .query-log .q-status.err { color: #fca5a5; }
+    .query-log .q-url { color: #93c5fd; }
+    .query-log .q-qc { display: block; margin-top: 4px; color: #fbbf24; font-size: 10px; }
+    .query-log .q-qc a { color: #fbbf24; text-decoration: underline; }
+    .card-log { width: 324px; margin-top: 12px; padding: 10px; background: #0f172a; color: #e2e8f0; border-radius: 8px; font-size: 11px; font-family: Consolas, monospace; box-sizing: border-box; max-height: 260px; overflow: auto; }
+    .card-log strong { display: block; margin-bottom: 6px; color: #fbbf24; font-family: Arial, sans-serif; font-size: 12px; }
+    .card-log .c-row { padding: 4px 0; border-bottom: 1px solid #1e293b; display: flex; gap: 6px; align-items: flex-start; }
+    .card-log .c-row:last-child { border-bottom: 0; }
+    .card-log .c-idx { color: #fbbf24; font-weight: 700; min-width: 22px; }
+    .card-log .c-link { color: #93c5fd; word-break: break-all; text-decoration: none; }
+    .card-log .c-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Preview: Kaori Kyou Widget (324 × 456)</h1>
+
+  <div class="controls">
+    <strong>Test tag query:</strong>
+    <div style="margin:6px 0">Isi tags (dipisah koma) untuk test tag-search flow. Kosongkan untuk fallback random.</div>
+    <input id="tag-input" type="text" placeholder="mitsuha, nendoroid, good smile" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
+    <button id="tag-apply" style="margin-top:6px;padding:6px 14px;background:#111827;color:#fff;border:0;border-radius:4px;cursor:pointer;font-size:12px">Apply & Reload</button>
+  </div>
+
+  <div class="frame">
+    <div class="article-content">
+      <p>Simulasi slot 324×456.</p>
+    </div>
+
+    <div class="td-tags" id="td-tags"></div>
+
+    <div id="kaori-widget-anchor"></div>
+  </div>
+
+  <div class="controls">
+    <strong>Cek UTM parameter:</strong>
+    <div>Klik salah satu card widget untuk lihat URL lengkap dengan UTM.</div>
+    <div class="link-inspector" id="link-inspector">
+      <strong>Link yang akan dibuka:</strong>
+      <code id="link-url"></code>
+    </div>
+  </div>
+
+  <div class="query-log" id="query-log">
+    <strong>Query log (search.kyou.id):</strong>
+    <div class="q-row" style="color:#64748b">Menunggu request...</div>
+  </div>
+
+  <div class="card-log" id="card-log">
+    <strong>Card items (yang muncul di widget):</strong>
+    <div id="active-query" style="margin-bottom:8px;padding:8px;background:#1e293b;border-radius:4px;font-size:10px;color:#94a3b8;display:none">
+      <div style="color:#fbbf24;margin-bottom:4px;font-family:Arial,sans-serif;font-size:11px"><strong>Query aktif untuk card ini:</strong></div>
+      <div id="active-query-params"></div>
+      <a id="active-query-qc" href="#" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:#fbbf24;text-decoration:underline;font-size:10px">→ Buka di kyou.id/search untuk compare</a>
+    </div>
+    <div class="c-row" style="color:#64748b">Menunggu widget mount...</div>
+  </div>
+
+  <script>
+  // ===== TAG INJECTOR =====
+  // Baca tags dari URL hash (#tags=a,b,c) lalu inject ke .td-tags.
+  // Juga sinkronkan input & tombol Apply.
+  (function setupTags() {
+    var params = new URLSearchParams(location.hash.slice(1));
+    var raw = params.get('tags') || '';
+    var tags = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+
+    var container = document.getElementById('td-tags');
+    tags.forEach(function (tag) {
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = '#' + tag;
+      container.appendChild(a);
+    });
+
+    var input = document.getElementById('tag-input');
+    input.value = tags.join(', ');
+    document.getElementById('tag-apply').addEventListener('click', function () {
+      var val = input.value.trim();
+      if (val) {
+        location.hash = 'tags=' + encodeURIComponent(val);
+      } else {
+        location.hash = '';
+      }
+      location.reload();
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') document.getElementById('tag-apply').click();
+    });
+  })();
+
+  // ===== QUERY LOGGER =====
+  // Wrap fetch untuk log request yang menuju search.kyou.id.
+  (function logFetch() {
+    var logEl = document.getElementById('query-log');
+    var placeholder = logEl.querySelector('.q-row');
+    var originalFetch = window.fetch;
+
+    function toQcUrl(apiUrl) {
+      try {
+        var u = new URL(apiUrl);
+        var qc = new URL('https://kyou.id/search');
+        u.searchParams.forEach(function (value, key) {
+          if (key === 'excludeFilters' || key === 'limit') return;
+          qc.searchParams.set(key, value);
+        });
+        return qc.toString();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function append(status, url, isError) {
+      if (placeholder) { placeholder.remove(); placeholder = null; }
+      var row = document.createElement('div');
+      row.className = 'q-row';
+      var statusEl = document.createElement('span');
+      statusEl.className = 'q-status' + (isError ? ' err' : '');
+      statusEl.textContent = status;
+      var urlEl = document.createElement('span');
+      urlEl.className = 'q-url';
+      urlEl.textContent = url;
+      row.appendChild(statusEl);
+      row.appendChild(urlEl);
+
+      var qcUrl = toQcUrl(url);
+      if (qcUrl) {
+        var qc = document.createElement('span');
+        qc.className = 'q-qc';
+        qc.innerHTML = 'QC: <a href="' + qcUrl + '" target="_blank" rel="noopener">' + qcUrl + '</a>';
+        row.appendChild(qc);
+      }
+
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    window.fetch = function (url, opts) {
+      var urlStr = String(url);
+      var isKyou = urlStr.indexOf('search.kyou.id') !== -1 || urlStr.indexOf('kyou.id') !== -1;
+      if (isKyou) append('→', urlStr, false);
+      return originalFetch(url, opts).then(function (res) {
+        if (isKyou) {
+          append(res.ok ? String(res.status) : 'ERR ' + res.status, urlStr, !res.ok);
+          if (res.ok) window.__lastKyouQuery = urlStr;
+        }
+        return res;
+      }, function (err) {
+        if (isKyou) append('FAIL', urlStr + ' (' + (err && err.message ? err.message : err) + ')', true);
+        throw err;
+      });
+    };
+  })();
+
+  // ===== CARD LOGGER =====
+  // Observe widget mount, lalu list semua href card real (bukan placeholder).
+  (function logCards() {
+    var logEl = document.getElementById('card-log');
+    var rendered = false;
+
+    function renderActiveQuery() {
+      var url = window.__lastKyouQuery;
+      var box = document.getElementById('active-query');
+      if (!url || !box) return;
+      try {
+        var u = new URL(url);
+        var paramsEl = document.getElementById('active-query-params');
+        paramsEl.innerHTML = '';
+        u.searchParams.forEach(function (value, key) {
+          var row = document.createElement('div');
+          var isSort = key === 'sort';
+          row.innerHTML = '<span style="color:' + (isSort ? '#fbbf24' : '#64748b') + '">' + key + '</span>=<span style="color:#93c5fd">' + (value || '(empty)') + '</span>';
+          paramsEl.appendChild(row);
+        });
+
+        var qc = new URL('https://kyou.id/search');
+        u.searchParams.forEach(function (value, key) {
+          if (key === 'excludeFilters' || key === 'limit') return;
+          qc.searchParams.set(key, value);
+        });
+        document.getElementById('active-query-qc').href = qc.toString();
+        box.style.display = 'block';
+      } catch (e) {}
+    }
+
+    function render() {
+      var cards = document.querySelectorAll('.kaori-kyou-widget__card:not(.kaori-kyou-widget__card--placeholder)');
+      if (!cards.length) return;
+      rendered = true;
+
+      var queryBox = document.getElementById('active-query');
+      logEl.innerHTML = '';
+      var header = document.createElement('strong');
+      header.textContent = 'Card items (' + cards.length + '):';
+      logEl.appendChild(header);
+      if (queryBox) logEl.appendChild(queryBox);
+      renderActiveQuery();
+      Array.prototype.forEach.call(cards, function (card, idx) {
+        var titleEl = card.querySelector('.kaori-kyou-widget__card-title');
+        var brandEl = card.querySelector('.kaori-kyou-widget__brand');
+        var title = titleEl ? titleEl.textContent.trim() : '(no title)';
+        var brand = brandEl ? brandEl.textContent.trim() : '';
+
+        var row = document.createElement('div');
+        row.className = 'c-row';
+
+        var idxEl = document.createElement('span');
+        idxEl.className = 'c-idx';
+        idxEl.textContent = (idx + 1) + '.';
+
+        var info = document.createElement('div');
+        info.style.flex = '1';
+
+        var link = document.createElement('a');
+        link.className = 'c-link';
+        link.href = card.href;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = title;
+        link.style.display = 'block';
+        link.style.fontWeight = '700';
+        link.style.color = '#e2e8f0';
+        info.appendChild(link);
+
+        if (brand) {
+          var brandSpan = document.createElement('div');
+          brandSpan.textContent = brand;
+          brandSpan.style.color = '#94a3b8';
+          brandSpan.style.fontSize = '10px';
+          info.appendChild(brandSpan);
+        }
+
+        row.appendChild(idxEl);
+        row.appendChild(info);
+        logEl.appendChild(row);
+      });
+    }
+
+    var mo = new MutationObserver(function () {
+      if (rendered) return;
+      render();
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+
+    setTimeout(function () { mo.disconnect(); if (!rendered) render(); }, 10000);
+  })();
+
+  // ===== LINK INSPECTOR =====
+  // Intercept klik pada card widget untuk tampilkan URL dengan UTM.
+  document.addEventListener('click', function (e) {
+    var card = e.target.closest && e.target.closest('.kaori-kyou-widget__card');
+    if (!card || !card.href) return;
+    e.preventDefault();
+    var inspector = document.getElementById('link-inspector');
+    var urlEl = document.getElementById('link-url');
+    urlEl.textContent = card.href;
+    inspector.classList.add('show');
+  }, true);
+  </script>
+
+  <script src="script.js"></script>
+</body>
+</html>

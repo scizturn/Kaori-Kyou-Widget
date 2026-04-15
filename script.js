@@ -893,7 +893,7 @@
     style.id = config.widgetId + '-styles';
     style.textContent = [
       '.kaori-kyou-widget{width:100%;max-width:100%;box-sizing:border-box;border-radius:16px;background:#fff5f0;margin:18px 0;font-family:Nunito,Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14);overflow:hidden}',
-      '.kaori-kyou-widget__header{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;background:#382e2c;color:#fff;font-weight:800;font-size:16px;letter-spacing:.2px;text-decoration:none;text-align:center;line-height:1.2}',
+      '.kaori-kyou-widget__header,a.kaori-kyou-widget__header,a.kaori-kyou-widget__header:link,a.kaori-kyou-widget__header:visited,a.kaori-kyou-widget__header:hover,a.kaori-kyou-widget__header:active{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;background:#382e2c;color:#fff !important;font-weight:800;font-size:16px;letter-spacing:.2px;text-decoration:none !important;text-align:center;line-height:1.2}',
       '.kaori-kyou-widget__header:hover{background:#382e2c}',
       '.kaori-kyou-widget__header-logo{display:inline-block;vertical-align:middle;width:auto;object-fit:contain}',
       '.kaori-kyou-widget__body{position:relative;padding:10px;box-sizing:border-box;background:transparent}',
@@ -912,7 +912,7 @@
       '.kaori-kyou-widget__carousel{overflow:hidden}',
       '.kaori-kyou-widget__track{display:flex;transition:transform .28s ease}',
       '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(var(--kaori-cols,2),1fr);gap:8px}',
-      '.kaori-kyou-widget__card{display:flex;flex-direction:column;color:inherit;text-decoration:none;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);transition:transform .2s ease,box-shadow .2s ease}',
+      '.kaori-kyou-widget__card,a.kaori-kyou-widget__card:link,a.kaori-kyou-widget__card:visited,a.kaori-kyou-widget__card:hover,a.kaori-kyou-widget__card:active{display:flex;flex-direction:column;color:#111827 !important;text-decoration:none !important;border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.1);transition:transform .2s ease,box-shadow .2s ease}',
       '.kaori-kyou-widget__card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.15)}',
       '.kaori-kyou-widget__card--placeholder{background:transparent;box-shadow:none;pointer-events:none;visibility:hidden}',
       '.kaori-kyou-widget__card--placeholder::before{content:"";display:block;width:100%;aspect-ratio:1/1}',

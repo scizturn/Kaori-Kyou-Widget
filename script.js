@@ -16,9 +16,20 @@
     minTagResults: 12,
     timeoutMs: 8000,
     randomPoolSize: 40,
-    randomSort: 'popular',
+    randomMaxPage: 5,
+    randomSort: 'kyou_search_score',
+    defaultSort: 'kyou_search_score',
     autoSlideMs: 5000,
-    searchPageBaseUrl: 'https://kyou.id/search'
+    headerText: '#RayakanHobimu Bersama {logo}',
+    headerHref: 'https://kyou.id',
+    headerLogoUrl: 'https://i.ibb.co.com/YFXhS8ZM/Kyou-Putih.png',
+    headerLogoAlt: 'Kyou',
+    headerLogoHeight: 32,
+    utmParams: {
+      utm_source: 'kaori',
+      utm_medium: 'widget',
+      utm_campaign: 'kyou-recs'
+    }
   };
 
   var userConfig = window.KaoriKyouWidgetConfig || {};
@@ -47,12 +58,13 @@
 
     searchWithFallbacks(tags)
       .then(function (payload) {
-        hideSkeleton();
         if (!payload || !payload.items || payload.items.length < config.minResultsToShow) {
+          loadFallbackResults();
           return;
         }
 
-        mountWidget(payload.validTags, payload.items, payload.query || '');
+        hideSkeleton();
+        mountWidget(payload.items);
       })
       .catch(function (error) {
         hideSkeleton();
@@ -71,7 +83,7 @@
           return;
         }
 
-        mountWidget([], items, payload && payload.query ? payload.query : '');
+        mountWidget(items);
       })
       .catch(function (error) {
         hideSkeleton();
@@ -206,6 +218,9 @@
     var url = new URL(config.searchEndpoint);
     url.searchParams.set('q', query);
     url.searchParams.set('limit', String(limit));
+    if (config.defaultSort) {
+      url.searchParams.set('sort', config.defaultSort);
+    }
     return url.toString();
   }
 
@@ -237,8 +252,12 @@
     return fetch(url, {
       credentials: 'omit',
       signal: controller.signal
-    }).finally(function () {
+    }).then(function (response) {
       window.clearTimeout(timer);
+      return response;
+    }, function (error) {
+      window.clearTimeout(timer);
+      throw error;
     });
   }
 
@@ -346,7 +365,8 @@
   }
 
   function fetchRandomMitsuhaPage() {
-    var randomPage = Math.max(1, Math.floor(Math.random() * 10) + 1);
+    var maxPage = Math.max(1, Number(config.randomMaxPage) || 1);
+    var randomPage = Math.floor(Math.random() * maxPage) + 1;
 
     return fetchSearchPayload({
       q: '',
@@ -381,6 +401,10 @@
       return false;
     }
 
+    if (source.is_showcast === true || source.is_showcast === 'true' || source.is_showcase === true || source.is_showcase === 'true') {
+      return false;
+    }
+
     if (source.sold === true || source.sold === 'true') {
       return false;
     }
@@ -397,19 +421,12 @@
       if (!source.deadline && Number(source.slot) === 0) {
         return false;
       }
-
-      if (source.deadline) {
-        var deadline = new Date(source.deadline);
-        if (!isNaN(deadline.getTime()) && deadline.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
-          return false;
-        }
-      }
     }
 
     return true;
   }
 
-  function mountWidget(validTags, items) {
+  function mountWidget(items) {
     hideSkeleton();
 
     if (document.getElementById(config.widgetId)) {
@@ -426,7 +443,7 @@
     var widget = document.createElement('aside');
     widget.id = config.widgetId;
     widget.className = 'kaori-kyou-widget';
-    widget.innerHTML = '<div class="kaori-kyou-widget__body"></div>';
+    widget.innerHTML = renderHeader() + '<div class="kaori-kyou-widget__body"></div>';
 
     if (anchor && anchor.parentNode) {
       anchor.parentNode.insertBefore(widget, anchor.nextSibling);
@@ -499,17 +516,31 @@
     if (typeof ResizeObserver !== 'undefined') {
       var ro = new ResizeObserver(onSizeChange);
       ro.observe(widget);
-    } else {
-      var onResize = function () {
+      return;
+    }
+
+    var onResize = function () {
+      if (!document.body.contains(widget)) {
+        window.removeEventListener('resize', onResize);
+        window.removeEventListener('orientationchange', onResize);
+        if (mo) { mo.disconnect(); }
+        return;
+      }
+      onSizeChange();
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+
+    var mo = null;
+    if (typeof MutationObserver !== 'undefined' && widget.parentNode) {
+      mo = new MutationObserver(function () {
         if (!document.body.contains(widget)) {
           window.removeEventListener('resize', onResize);
           window.removeEventListener('orientationchange', onResize);
-          return;
+          mo.disconnect();
         }
-        onSizeChange();
-      };
-      window.addEventListener('resize', onResize);
-      window.addEventListener('orientationchange', onResize);
+      });
+      mo.observe(widget.parentNode, { childList: true });
     }
   }
 
@@ -522,13 +553,24 @@
     var skeleton = document.createElement('aside');
     skeleton.id = config.widgetId + '-skeleton';
     skeleton.className = 'kaori-kyou-widget kaori-kyou-widget--skeleton';
+    var cardHtml = [
+      '<div class="kaori-kyou-widget__skeleton-card">',
+      '  <div class="kaori-kyou-widget__skeleton-thumb"></div>',
+      '  <div class="kaori-kyou-widget__skeleton-info">',
+      '    <div class="kaori-kyou-widget__skeleton-line kaori-kyou-widget__skeleton-line--title"></div>',
+      '    <div class="kaori-kyou-widget__skeleton-line kaori-kyou-widget__skeleton-line--brand"></div>',
+      '  </div>',
+      '</div>'
+    ].join('');
+
     skeleton.innerHTML = [
+      '<div class="kaori-kyou-widget__header kaori-kyou-widget__skeleton-header"></div>',
       '<div class="kaori-kyou-widget__body">',
       '  <div class="kaori-kyou-widget__skeleton-grid">',
-      '    <div class="kaori-kyou-widget__skeleton-card"></div>',
-      '    <div class="kaori-kyou-widget__skeleton-card"></div>',
-      '    <div class="kaori-kyou-widget__skeleton-card"></div>',
-      '    <div class="kaori-kyou-widget__skeleton-card"></div>',
+      cardHtml, cardHtml, cardHtml, cardHtml,
+      '  </div>',
+      '  <div class="kaori-kyou-widget__skeleton-dots">',
+      '    <span></span><span></span><span></span>',
       '  </div>',
       '</div>'
     ].join('');
@@ -545,6 +587,32 @@
     if (skeleton && skeleton.parentNode) {
       skeleton.parentNode.removeChild(skeleton);
     }
+  }
+
+  function renderHeader() {
+    if (!config.headerText) return '';
+
+    var parts = String(config.headerText).split('{logo}');
+    var content = '';
+    for (var i = 0; i < parts.length; i += 1) {
+      content += escapeHtml(parts[i]);
+      if (i < parts.length - 1) {
+        content += renderHeaderLogo();
+      }
+    }
+
+    if (config.headerHref) {
+      return '<a class="kaori-kyou-widget__header" href="' + escapeAttribute(appendUtm(config.headerHref)) + '" target="_blank" rel="noopener sponsored">' + content + '</a>';
+    }
+    return '<div class="kaori-kyou-widget__header">' + content + '</div>';
+  }
+
+  function renderHeaderLogo() {
+    if (config.headerLogoUrl) {
+      var height = Number(config.headerLogoHeight) || 18;
+      return '<img class="kaori-kyou-widget__header-logo" src="' + escapeAttribute(config.headerLogoUrl) + '" alt="' + escapeAttribute(config.headerLogoAlt || '') + '" style="height:' + height + 'px">';
+    }
+    return escapeHtml(config.headerLogoAlt || 'Kyou');
   }
 
   function renderCarousel(items, pageItemCount) {
@@ -594,7 +662,7 @@
           : '';
 
         return [
-          '<a class="kaori-kyou-widget__card" href="' + escapeAttribute(item.url) + '" target="_blank" rel="noopener sponsored">',
+          '<a class="kaori-kyou-widget__card" href="' + escapeAttribute(appendUtm(item.url)) + '" target="_blank" rel="noopener sponsored">',
           imageHtml,
           '<div class="kaori-kyou-widget__info">',
           '<div class="kaori-kyou-widget__card-title">' + escapeHtml(item.title) + '</div>',
@@ -785,18 +853,55 @@
     return '';
   }
 
+  function injectFont() {
+    var fontId = config.widgetId + '-font';
+    if (document.getElementById(fontId)) return;
+
+    var preconnect1 = document.createElement('link');
+    preconnect1.rel = 'preconnect';
+    preconnect1.href = 'https://fonts.googleapis.com';
+    document.head.appendChild(preconnect1);
+
+    var preconnect2 = document.createElement('link');
+    preconnect2.rel = 'preconnect';
+    preconnect2.href = 'https://fonts.gstatic.com';
+    preconnect2.crossOrigin = 'anonymous';
+    document.head.appendChild(preconnect2);
+
+    var font = document.createElement('link');
+    font.id = fontId;
+    font.rel = 'stylesheet';
+    font.href = 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap';
+    document.head.appendChild(font);
+  }
+
   function injectStyles() {
     if (document.getElementById(config.widgetId + '-styles')) {
       return;
     }
 
+    injectFont();
+
     var style = document.createElement('style');
     style.id = config.widgetId + '-styles';
     style.textContent = [
-      '.kaori-kyou-widget{width:100%;max-width:100%;box-sizing:border-box;border-radius:16px;background:#fff;margin:18px 0;font-family:Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14);overflow:hidden}',
-      '.kaori-kyou-widget__body{position:relative;padding:8px;box-sizing:border-box;background:#fff7f2}',
+      '.kaori-kyou-widget{width:100%;max-width:100%;box-sizing:border-box;border-radius:16px;background:#fff5f0;margin:18px 0;font-family:Nunito,Arial,sans-serif;box-shadow:0 14px 28px rgba(17,24,39,.14);overflow:hidden}',
+      '.kaori-kyou-widget__header{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;background:#382e2c;color:#fff;font-weight:800;font-size:16px;letter-spacing:.2px;text-decoration:none;text-align:center;line-height:1.2}',
+      '.kaori-kyou-widget__header:hover{background:#382e2c}',
+      '.kaori-kyou-widget__header-logo{display:inline-block;vertical-align:middle;width:auto;object-fit:contain}',
+      '.kaori-kyou-widget__body{position:relative;padding:10px;box-sizing:border-box;background:transparent}',
+      '.kaori-kyou-widget--skeleton{background:#f9fafb}',
       '.kaori-kyou-widget__skeleton-grid{display:grid;grid-template-columns:repeat(var(--kaori-cols,2),1fr);gap:8px}',
-      '.kaori-kyou-widget__skeleton-card{border-radius:10px;overflow:hidden;background:linear-gradient(90deg,#f3e6df 25%,#fff5f0 50%,#f3e6df 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite;aspect-ratio:1/1}',
+      '.kaori-kyou-widget__skeleton-header{background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite;height:40px;padding:0}',
+      '.kaori-kyou-widget__skeleton-card{border-radius:10px;overflow:hidden;background:#fff;display:flex;flex-direction:column}',
+      '.kaori-kyou-widget__skeleton-thumb{width:100%;aspect-ratio:1/1;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite}',
+      '.kaori-kyou-widget__skeleton-info{padding:6px 7px 8px;height:58px;box-sizing:border-box;display:flex;flex-direction:column;gap:4px}',
+      '.kaori-kyou-widget__skeleton-line{border-radius:4px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;animation:kaoriKyouSkeleton 1.2s ease-in-out infinite}',
+      '.kaori-kyou-widget__skeleton-line--title{height:10px;width:90%}',
+      '.kaori-kyou-widget__skeleton-line--brand{height:8px;width:60%}',
+      '.kaori-kyou-widget__skeleton-dots{display:flex;justify-content:center;gap:5px;padding:8px 0 6px}',
+      '.kaori-kyou-widget__skeleton-dots span{width:6px;height:6px;border-radius:999px;background:#e5e7eb}',
+      '.kaori-kyou-widget__skeleton-dots span:first-child{width:18px;background:#d1d5db}',
       '.kaori-kyou-widget__carousel{overflow:hidden}',
       '.kaori-kyou-widget__track{display:flex;transition:transform .28s ease}',
       '.kaori-kyou-widget__page{flex:0 0 100%;display:grid;grid-template-columns:repeat(var(--kaori-cols,2),1fr);gap:8px}',
@@ -816,9 +921,9 @@
       '.kaori-kyou-widget__nav{position:absolute;top:50%;transform:translateY(-50%);width:24px;height:24px;border:0;border-radius:999px;background:rgba(255,255,255,.9);color:#111827;font-size:16px;line-height:24px;text-align:center;cursor:pointer;z-index:2;box-shadow:0 2px 6px rgba(15,23,42,.2)}',
       '.kaori-kyou-widget__nav--prev{left:4px}',
       '.kaori-kyou-widget__nav--next{right:4px}',
-      '.kaori-kyou-widget__dots{display:flex;justify-content:center;gap:5px;padding:6px 0 4px}',
-      '.kaori-kyou-widget__dot{width:6px;height:6px;padding:0;border:0;border-radius:999px;background:#fdba8c;cursor:pointer}',
-      '.kaori-kyou-widget__dot.is-active{width:16px;background:#f97316}',
+      '.kaori-kyou-widget__dots{display:flex;justify-content:center;gap:5px;padding:8px 0 6px}',
+      '.kaori-kyou-widget__dot{width:6px;height:6px;padding:0;border:0;border-radius:999px;background:rgba(211, 210, 210, 0.55);cursor:pointer}',
+      '.kaori-kyou-widget__dot.is-active{width:18px;background:#fc4c02}',
       '@keyframes kaoriKyouSkeleton{0%{background-position:200% 0}100%{background-position:-200% 0}}',
       '@media (max-width:480px){.kaori-kyou-widget{width:100%}}'
     ].join('');
@@ -850,6 +955,27 @@
     }
 
     return '';
+  }
+
+  function appendUtm(rawUrl) {
+    if (!rawUrl || !config.utmParams) {
+      return rawUrl;
+    }
+
+    try {
+      var url = new URL(rawUrl);
+      var params = config.utmParams;
+      for (var key in params) {
+        if (!Object.prototype.hasOwnProperty.call(params, key)) continue;
+        var value = params[key];
+        if (value === undefined || value === null || value === '') continue;
+        if (url.searchParams.has(key)) continue;
+        url.searchParams.set(key, String(value));
+      }
+      return url.toString();
+    } catch (e) {
+      return rawUrl;
+    }
   }
 
   function trimSlashes(value) {

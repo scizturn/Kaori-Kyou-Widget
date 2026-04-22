@@ -9,6 +9,7 @@
     widgetId: 'kaori-kyou-widget',
     maxSourceTags: 50,
     bannedKeywords: ['seiyu'],
+    bannedItemKeywords: ['PVC Figure 1/4'],
     resultLimit: 40,
     fallbackRenderLimit: 40,
     maxIndividualSearches: 5,
@@ -427,6 +428,22 @@
         if (!isNaN(deadline.getTime()) && deadline.getTime() < Date.now() - 24 * 60 * 60 * 1000) {
           return false;
         }
+      }
+    }
+
+    if (config.bannedItemKeywords && config.bannedItemKeywords.length) {
+      var itemName = firstString([
+        source.name,
+        source.item_name,
+        source.title,
+        source.headline,
+        source.post_title
+      ]).toLowerCase();
+
+      if (config.bannedItemKeywords.some(function (kw) {
+        return itemName.indexOf(String(kw).toLowerCase()) !== -1;
+      })) {
+        return false;
       }
     }
 

@@ -626,7 +626,7 @@
     }
 
     if (config.headerHref) {
-      return '<a class="kaori-kyou-widget__header" href="' + escapeAttribute(appendUtm(config.headerHref)) + '" target="_blank" rel="noopener sponsored">' + content + '</a>';
+      return '<a class="kaori-kyou-widget__header" href="' + escapeAttribute(appendUtm(config.headerHref)) + '" target="_blank" rel="noopener sponsored nofollow">' + content + '</a>';
     }
     return '<div class="kaori-kyou-widget__header">' + content + '</div>';
   }
@@ -686,7 +686,7 @@
           : '';
 
         return [
-          '<a class="kaori-kyou-widget__card" href="' + escapeAttribute(appendUtm(item.url)) + '" target="_blank" rel="noopener sponsored">',
+          '<a class="kaori-kyou-widget__card" href="' + escapeAttribute(appendUtm(item.url)) + '" target="_blank" rel="noopener sponsored nofollow">',
           imageHtml,
           '<div class="kaori-kyou-widget__info">',
           '<div class="kaori-kyou-widget__card-title">' + escapeHtml(item.title) + '</div>',

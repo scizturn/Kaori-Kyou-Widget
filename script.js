@@ -97,7 +97,11 @@
   function searchWithFallbacks(validTags) {
     var query = validTags.join(' ');
 
-    return searchByTags(validTags)
+    // Per-tag searches run in parallel and are merged in tag-priority order.
+    // A single combined "all tags joined" query is intentionally avoided: the
+    // backend treats the extra terms as near-AND, so it is both slow (0.5-3.5s)
+    // and matches almost nothing, forcing a fallthrough anyway.
+    return searchEachTag(validTags)
       .catch(function () {
         return [];
       })
@@ -110,54 +114,37 @@
           };
         }
 
-        return searchEachTag(validTags)
-          .catch(function () {
-            return [];
-          })
-          .then(function (fallbackItems) {
-            if (fallbackItems.length > config.minTagResults) {
-              return {
-                validTags: validTags,
-                items: fallbackItems,
-                query: query
-              };
-            }
-
-            return loadFallbackPayload();
-          });
+        return loadFallbackPayload();
       });
   }
 
   function searchEachTag(validTags) {
-    var uniqueUrls = Object.create(null);
-    var mergedItems = [];
-    var chain = Promise.resolve();
     var tagsToSearch = validTags.slice(0, config.maxIndividualSearches);
 
-    tagsToSearch.forEach(function (tag) {
-      chain = chain.then(function () {
-        if (mergedItems.length >= config.resultLimit) {
-          return null;
-        }
-
-        return searchRequest(tag, config.resultLimit)
-          .catch(function () {
-            return [];
-          })
-          .then(function (items) {
-            items.forEach(function (item) {
-              if (!item || !item.url || uniqueUrls[item.url]) {
-                return;
-              }
-
-              uniqueUrls[item.url] = true;
-              mergedItems.push(item);
-            });
-          });
+    var requests = tagsToSearch.map(function (tag) {
+      return searchRequest(tag, config.resultLimit).catch(function () {
+        return [];
       });
     });
 
-    return chain.then(function () {
+    // Fire all tag requests concurrently, then merge preserving tag order so the
+    // first tag's results still rank first.
+    return Promise.all(requests).then(function (resultsPerTag) {
+      var uniqueUrls = Object.create(null);
+      var mergedItems = [];
+
+      for (var i = 0; i < resultsPerTag.length; i += 1) {
+        var items = resultsPerTag[i];
+        for (var j = 0; j < items.length; j += 1) {
+          var item = items[j];
+          if (!item || !item.url || uniqueUrls[item.url]) {
+            continue;
+          }
+          uniqueUrls[item.url] = true;
+          mergedItems.push(item);
+        }
+      }
+
       return mergedItems.slice(0, config.resultLimit);
     });
   }
@@ -193,11 +180,6 @@
       })
       .filter(Boolean)
       .slice(0, config.maxSourceTags);
-  }
-
-  function searchByTags(validTags) {
-    var query = validTags.join(' ');
-    return searchRequest(query, config.resultLimit);
   }
 
   function searchRequest(query, limit) {

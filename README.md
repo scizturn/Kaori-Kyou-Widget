@@ -44,14 +44,14 @@ kyoucdn.id instead, where we own the cache headers and can purge in seconds.
 WordPress ──▶ jsDelivr /script.js          (frozen ~7 days; never changes again)
                    │
                    ▼
-              kyoucdn.id /kaori-widget.js  (the real widget; purgeable, instant)
+              kyoucdn.id /kaori-widget.js  (the real widget; purgeable)
                    │  on error
                    ▼
               jsDelivr /kaori-widget.js    (the copy in this repo, as a safety net)
 ```
 
-**To ship a change:** edit `kaori-widget.js`, upload it to
-`https://kyoucdn.id/static/assets/kaori-widget.js`, purge that path in Cloudflare. Live in seconds.
+**To ship a change:** edit `kaori-widget.js`, upload it to `https://kyoucdn.id/kaori-widget.js`,
+purge that path in Cloudflare.
 Push to `master` as well, so the fallback copy stays current.
 
 Do **not** put the widget back into `script.js` to save a request. That request is what buys the

@@ -21,7 +21,7 @@
   // every article on the site, and it means this loader is safe to ship before the CDN copy
   // even exists.
 
-  var PRIMARY = 'https://kyoucdn.id/static/assets/kaori-widget.js';
+  var PRIMARY = 'https://kyoucdn.id/kaori-widget.js';
   var FALLBACK = 'https://cdn.jsdelivr.net/gh/scizturn/Kaori-Kyou-Widget@master/kaori-widget.js';
 
   if (document.getElementById('kaori-kyou-widget-loader')) {

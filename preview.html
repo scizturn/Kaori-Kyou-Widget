@@ -43,11 +43,25 @@
   <div class="controls">
     <strong>Test tag query:</strong>
     <div style="margin:6px 0">Isi tags (dipisah koma) untuk test tag-search flow. Kosongkan untuk fallback random.</div>
-    <input id="tag-input" type="text" placeholder="mitsuha, nendoroid, good smile" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
-    <button id="tag-apply" style="margin-top:6px;padding:6px 14px;background:#111827;color:#fff;border:0;border-radius:4px;cursor:pointer;font-size:12px">Apply & Reload</button>
+    <input id="tag-input" type="text" placeholder="blue lock, makeine, Silent Hill" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
+
+    <div style="margin:10px 0 6px">Judul artikel — ditambang untuk franchise yang <em>tidak</em> ada di tag (secret label).</div>
+    <input id="title-input" type="text" placeholder="Novel dan Komik Baru Phoenix Gramedia: Dari Rayearth Sampai Makeine!" style="width:100%;padding:6px;border:1px solid #ccc;border-radius:4px;font-size:12px;box-sizing:border-box">
+
+    <button id="tag-apply" style="margin-top:8px;padding:6px 14px;background:#111827;color:#fff;border:0;border-radius:4px;cursor:pointer;font-size:12px">Apply &amp; Reload</button>
+
+    <div style="margin-top:10px;font-size:11px;color:#666">
+      Contoh siap pakai:
+      <a href="#tags=blue%20lock,makeine,Silent%20Hill&amp;title=Novel%20dan%20Komik%20Baru%20Phoenix%20Gramedia%3A%20Dari%20Rayearth%20Sampai%20Makeine!">Rayearth (secret label dari judul)</a> ·
+      <a href="#tags=Ultraman%20di%20RTV,Ultraman%202026,Ultraman%20Teo%20di%20RTV&amp;title=Catat!%20Ini%20Tanggal%20Tayang%20Ultraman%20Teo%20di%20RTV!">Ultraman (tag majemuk nol-hasil)</a> ·
+      <a href="#tags=kaito,meiko,Virtual%20Singer,vocaloid&amp;title=MEIKO%20dan%20KAITO%20Hadir%20di%20Desktop%20Mate">MEIKO/KAITO</a> ·
+      <a href="#tags=garena,free%20fire,Kagendra,mbr%20esports&amp;title=Jelang%20Grand%20Final%20FFNS%202026">FFNS (harus fallback)</a>
+    </div>
   </div>
 
   <div class="frame">
+    <h1 class="entry-title" id="entry-title" style="font-size:14px;margin:0 0 6px;color:#111"></h1>
+
     <div class="article-content">
       <p>Simulasi slot 324×456.</p>
     </div>
@@ -88,6 +102,7 @@
   (function setupTags() {
     var params = new URLSearchParams(location.hash.slice(1));
     var raw = params.get('tags') || '';
+    var title = params.get('title') || '';
     var tags = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
 
     var container = document.getElementById('td-tags');
@@ -98,20 +113,30 @@
       container.appendChild(a);
     });
 
+    // The widget reads this to mine franchises nobody tagged, so it must be set before
+    // script.js runs -- see titleSelector.
+    document.getElementById('entry-title').textContent = title;
+
     var input = document.getElementById('tag-input');
+    var titleInput = document.getElementById('title-input');
     input.value = tags.join(', ');
+    titleInput.value = title;
+
     document.getElementById('tag-apply').addEventListener('click', function () {
-      var val = input.value.trim();
-      if (val) {
-        location.hash = 'tags=' + encodeURIComponent(val);
-      } else {
-        location.hash = '';
-      }
+      var next = new URLSearchParams();
+      if (input.value.trim()) next.set('tags', input.value.trim());
+      if (titleInput.value.trim()) next.set('title', titleInput.value.trim());
+      location.hash = next.toString();
       location.reload();
     });
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') document.getElementById('tag-apply').click();
+
+    [input, titleInput].forEach(function (el) {
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') document.getElementById('tag-apply').click();
+      });
     });
+
+    window.addEventListener('hashchange', function () { location.reload(); });
   })();
 
   // ===== QUERY LOGGER =====

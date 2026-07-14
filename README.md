@@ -14,13 +14,49 @@ A lightweight, zero-dependency JavaScript widget that displays related product r
 
 ## Installation
 
-Include the script at the bottom of your page:
-
 ```html
-<script src="kaori-nusantara.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/scizturn/Kaori-Kyou-Widget@master/script.js"></script>
 ```
 
-The widget will mount itself automatically after the element matched by `mountAfterSelector`.
+The widget mounts itself automatically after the element matched by `mountAfterSelector`.
+
+## Deployment
+
+**`script.js` is a loader. The widget is `kaori-widget.js`.**
+
+That split exists because of one header. WordPress loads `script.js` from jsDelivr, that URL is not
+ours to change, and jsDelivr serves it as:
+
+```
+cache-control: public, max-age=604800, s-maxage=43200
+```
+
+A reader who has already opened one Kaori article keeps their copy for **seven days** without
+touching the network, and jsDelivr only re-resolves `@master` to a commit every **12 hours** on top
+of that. Neither can be purged — not by us, not by jsDelivr, not by Cloudflare. The header is
+already in the reader's browser.
+
+So the file at that URL can never be the thing we ship. It has to be something we are content to
+have frozen for a week — a loader that should essentially never change again. The widget lives on
+kyoucdn.id instead, where we own the cache headers and can purge in seconds.
+
+```
+WordPress ──▶ jsDelivr /script.js          (frozen ~7 days; never changes again)
+                   │
+                   ▼
+              kyoucdn.id /kaori-widget.js  (the real widget; purgeable, instant)
+                   │  on error
+                   ▼
+              jsDelivr /kaori-widget.js    (the copy in this repo, as a safety net)
+```
+
+**To ship a change:** edit `kaori-widget.js`, upload it to
+`https://kyoucdn.id/static/assets/kaori-widget.js`, purge that path in Cloudflare. Live in seconds.
+Push to `master` as well, so the fallback copy stays current.
+
+Do **not** put the widget back into `script.js` to save a request. That request is what buys the
+ability to deploy — and to roll back — at all. Without it, a bad release is stuck in front of
+readers for a week.
 
 ## Configuration
 

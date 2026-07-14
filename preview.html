@@ -308,6 +308,8 @@
   }, true);
   </script>
 
-  <script src="script.js"></script>
+  <!-- The widget itself, not script.js: script.js is only the production loader, and it would
+       pull the CDN copy instead of the local edits you are trying to preview. -->
+  <script src="kaori-widget.js"></script>
 </body>
 </html>

@@ -70,7 +70,7 @@ Override defaults by defining `window.KaoriKyouWidgetConfig` **before** the scri
     maxSourceTags: 20
   };
 </script>
-<script src="kaori-nusantara.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/scizturn/Kaori-Kyou-Widget@master/script.js"></script>
 ```
 
 ### Available Options
